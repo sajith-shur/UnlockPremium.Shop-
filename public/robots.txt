@@ -1,0 +1,7 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://unlockpremium.shop/sitemap.xml
+Sitemap: https://unlockshop.web.app/sitemap.xml

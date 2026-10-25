@@ -22,6 +22,7 @@ export default function Footer() {
               <span className="font-bold text-lg">
                 <span className="text-white">Unlock</span>
                 <span className="text-blue-400">Premium</span>
+                <span className="text-slate-200 font-semibold ml-1.5 text-base">Shop</span>
               </span>
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed mb-4">

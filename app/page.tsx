@@ -18,9 +18,9 @@ const STATS = [
 ];
 
 const TRUST_BADGES = [
-  { icon: ShieldCheck, text: 'Secure & Trusted' },
+  { icon: Sparkles, text: 'Curated Subscriptions' },
   { icon: Globe, text: 'UK-Based Store' },
-  { icon: Sparkles, text: 'Premium Selection' },
+  { icon: ShieldCheck, text: 'Premium Selection' },
 ];
 
 export default function HomePage() {

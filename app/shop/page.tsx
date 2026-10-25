@@ -166,20 +166,35 @@ function ShopContent() {
   );
 }
 
+function ShopStaticFallback() {
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mb-10">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">All Products</h1>
+        <p className="text-slate-400">Browse our full demonstration product catalogue</p>
+      </div>
+
+      <div className="mb-8 px-4 py-3 rounded-xl border border-amber-700/30 bg-amber-950/20 text-xs text-amber-300/80 flex items-start gap-2">
+        <span aria-hidden="true">⚠️</span>
+        <span>
+          <strong>Demonstration catalogue only.</strong> Products shown are sample concepts for UI purposes. This store is not an authorised partner of any brand shown. No real purchases can be made.
+        </span>
+      </div>
+
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" role="list">
+        {PRODUCTS.map((product) => (
+          <li key={product.id}>
+            <ProductCard product={product} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function ShopPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          <div className="h-10 w-48 bg-blue-950/50 rounded-lg animate-pulse mb-4" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-64 rounded-2xl bg-blue-950/40 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<ShopStaticFallback />}>
       <ShopContent />
     </Suspense>
   );
