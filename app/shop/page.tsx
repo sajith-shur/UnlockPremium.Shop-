@@ -174,6 +174,39 @@ function ShopStaticFallback() {
         <p className="text-slate-400">Browse our full demonstration product catalogue</p>
       </div>
 
+      {/* Static search + filters toolbar */}
+      <div className="flex flex-col gap-4 mb-8">
+        <div className="w-full max-w-xl relative">
+          <div className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-blue-950/40 border border-blue-800/40 text-slate-400 text-sm">
+            Search by name, type or category…
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Category filters">
+          <span className="flex items-center gap-1.5 text-xs text-slate-400 font-medium mr-1">
+            <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+            Filter:
+          </span>
+          <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-blue-600 text-white border border-blue-500">
+            All
+          </span>
+          {CATEGORIES.map((cat) => (
+            <a
+              key={cat.name}
+              href={`/shop?category=${encodeURIComponent(cat.name)}`}
+              className="px-3 py-1.5 rounded-full text-xs font-medium glass-card text-slate-300 border border-transparent hover:border-blue-700/50 hover:text-white transition-all"
+            >
+              <span aria-hidden="true">{cat.icon}</span> {cat.name}
+            </a>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-6 text-sm text-slate-400">
+        <Filter className="w-4 h-4" aria-hidden="true" />
+        <span>12 demonstration products</span>
+      </div>
+
       <div className="mb-8 px-4 py-3 rounded-xl border border-amber-700/30 bg-amber-950/20 text-xs text-amber-300/80 flex items-start gap-2">
         <span aria-hidden="true">⚠️</span>
         <span>

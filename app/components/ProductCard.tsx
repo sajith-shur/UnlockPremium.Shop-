@@ -51,11 +51,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           <span className="text-white font-bold text-xl" aria-label={`Demo price £${product.demoPrice.toFixed(2)}`}>
             £{product.demoPrice.toFixed(2)}
           </span>
-          {product.demoOriginalPrice && (
-            <span className="text-slate-500 text-sm line-through" aria-label={`Was £${product.demoOriginalPrice.toFixed(2)}`}>
-              £{product.demoOriginalPrice.toFixed(2)}
-            </span>
-          )}
           <span className="ml-auto flex items-center gap-1 text-xs text-amber-400 font-medium">
             <Tag className="w-3 h-3" aria-hidden="true" />
             Demo

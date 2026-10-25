@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, CheckCircle, Tag, AlertTriangle, ExternalLink } from 'lucide-react';
 import { getAllProducts, getProductBySlug } from '@/app/lib/products';
+import { ROBOTS_CONFIG } from '@/app/lib/seo';
 
 // Pre-generate pages for all demo products at build time
 export function generateStaticParams() {
@@ -20,6 +21,7 @@ export async function generateMetadata(
   return {
     title: `${product.name} (Demo) — ${product.category}`,
     description: product.description.slice(0, 160),
+    robots: ROBOTS_CONFIG,
   };
 }
 
@@ -34,11 +36,6 @@ export default async function ProductPage({
   if (!product) {
     notFound();
   }
-
-  const savingsAmount =
-    product.demoOriginalPrice
-      ? (product.demoOriginalPrice - product.demoPrice).toFixed(2)
-      : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -154,20 +151,7 @@ export default async function ProductPage({
                 >
                   £{product.demoPrice.toFixed(2)}
                 </span>
-                {product.demoOriginalPrice && (
-                  <span
-                    className="text-slate-500 text-lg line-through"
-                    aria-label={`Was £${product.demoOriginalPrice.toFixed(2)}`}
-                  >
-                    £{product.demoOriginalPrice.toFixed(2)}
-                  </span>
-                )}
               </div>
-              {savingsAmount && (
-                <p className="text-emerald-400 text-sm font-medium">
-                  Demo saving: £{savingsAmount}
-                </p>
-              )}
               <p className="text-slate-500 text-xs mt-1">Prices shown for demonstration only</p>
             </div>
 

@@ -1,7 +1,4 @@
-# https://www.robotstxt.org/robotstxt.html
+# UnlockPremium Shop — Development & Demonstration Environment
+# Disallow indexing until official production launch
 User-agent: *
-Allow: /
-
-# Sitemaps
-Sitemap: https://unlockpremium.shop/sitemap.xml
-Sitemap: https://unlockshop.web.app/sitemap.xml
+Disallow: /

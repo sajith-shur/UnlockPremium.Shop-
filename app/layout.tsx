@@ -10,17 +10,19 @@ const inter = Inter({
   display: 'swap',
 });
 
+import { SITE_URL, ROBOTS_CONFIG } from '@/app/lib/seo';
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://unlockpremium.shop'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'UnlockPremium Shop — Unlock More. Spend Less.',
     template: '%s | UnlockPremium Shop',
   },
   description:
-    'UK-based digital subscription marketplace. Save on software, creative tools, AI platforms, education, music and entertainment. Unlock More. Spend Less.',
+    'UK-based digital subscription marketplace covering software, creative tools, AI platforms, education, music and entertainment. Unlock More. Spend Less.',
   keywords: [
     'digital subscriptions',
-    'software deals',
+    'software tools',
     'UK',
     'Canva',
     'Microsoft 365',
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_GB',
-    url: 'https://unlockpremium.shop',
+    url: SITE_URL,
     siteName: 'UnlockPremium Shop',
     title: 'UnlockPremium Shop — Unlock More. Spend Less.',
     description:
@@ -42,12 +44,10 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'UnlockPremium Shop — Unlock More. Spend Less.',
-    description: 'UK-based digital subscription marketplace. Save on premium software and services.',
+    description:
+      'UK-based digital subscription marketplace covering software, creative tools, AI, education, music and entertainment.',
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
+  robots: ROBOTS_CONFIG,
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

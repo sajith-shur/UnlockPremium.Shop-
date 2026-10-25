@@ -24,8 +24,6 @@ export interface Product {
   category: Category;
   /** Demo price in GBP — NOT a live offer */
   demoPrice: number;
-  /** Demo original price in GBP — for display only */
-  demoOriginalPrice?: number;
   badge?: string;
   features: string[];
   icon: string; // emoji fallback icon
@@ -83,7 +81,6 @@ export const PRODUCTS: Product[] = [
       'Access premium Canva Pro templates, brand kits, background remover and AI design tools. Perfect for marketers, social media managers and small business owners who want polished visuals without design experience.',
     category: 'Design & Creativity',
     demoPrice: 89.99,
-    demoOriginalPrice: 109.99,
     badge: 'Popular',
     features: [
       'Unlimited premium templates',
@@ -130,8 +127,7 @@ export const PRODUCTS: Product[] = [
       'The complete Office suite for one person, including 1 TB OneDrive storage. Get premium versions of Word, Excel, PowerPoint, Outlook and Teams on up to 5 devices.',
     category: 'Office & Productivity',
     demoPrice: 59.99,
-    demoOriginalPrice: 69.99,
-    badge: 'Best Value',
+    badge: 'Personal Edition',
     features: [
       'Word, Excel, PowerPoint',
       'Outlook email client',
@@ -223,8 +219,7 @@ export const PRODUCTS: Product[] = [
       'The most effective language learning app, now without ads. Unlimited hearts, personalised practice, offline lessons and progress tracking. Learn Spanish, French, Japanese and 40+ more languages.',
     category: 'Learning & Education',
     demoPrice: 59.99,
-    demoOriginalPrice: 79.99,
-    badge: 'Save 25%',
+    badge: 'Popular',
     features: [
       '40+ languages available',
       'Ad-free experience',
@@ -338,8 +333,7 @@ export const PRODUCTS: Product[] = [
       'Stream thousands of films and series from Disney, Pixar, Marvel, Star Wars and National Geographic. Enjoy family favourites alongside the latest blockbuster releases on up to 4 screens.',
     category: 'TV & Streaming',
     demoPrice: 4.99,
-    demoOriginalPrice: 7.99,
-    badge: 'Great Deal',
+    badge: 'Family',
     features: [
       'Disney, Pixar & Marvel',
       'Star Wars universe',
