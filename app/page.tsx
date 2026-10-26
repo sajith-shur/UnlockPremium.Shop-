@@ -8,18 +8,18 @@ import CategoryCard from '@/app/components/CategoryCard';
 export const metadata: Metadata = {
   title: 'UnlockPremium Shop — Unlock More. Spend Less.',
   description:
-    'UK digital subscription marketplace. Browse curated deals on software, creative tools, AI platforms, education, music and streaming entertainment.',
+    'Digital subscription marketplace. Browse curated subscriptions for software, creative tools, AI platforms, education, music and streaming entertainment.',
 };
 
 const STATS = [
   { value: '6', label: 'Categories' },
   { value: '12+', label: 'Products' },
-  { value: 'UK', label: 'Based' },
+  { value: '100%', label: 'Digital' },
 ];
 
 const TRUST_BADGES = [
   { icon: Sparkles, text: 'Curated Subscriptions' },
-  { icon: Globe, text: 'UK-Based Store' },
+  { icon: Globe, text: 'Multi-Category Selection' },
   { icon: ShieldCheck, text: 'Premium Selection' },
 ];
 
@@ -70,7 +70,7 @@ export default function HomePage() {
           {/* Eyebrow */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-950/50 text-blue-300 text-xs font-medium mb-6 animate-slide-up">
             <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-            UK Digital Subscription Marketplace
+            Digital Subscription Marketplace
           </div>
 
           {/* Heading */}
@@ -87,8 +87,7 @@ export default function HomePage() {
             className="max-w-2xl mx-auto text-slate-300 text-lg sm:text-xl leading-relaxed mb-10 animate-slide-up"
             style={{ animationDelay: '0.2s' }}
           >
-            Curated digital subscriptions across software, creative tools, AI platforms, education,
-            music and entertainment — all in one UK store.
+            Discover digital subscriptions for creativity, productivity, learning and entertainment, all in one place.
           </p>
 
           {/* Demo notice */}

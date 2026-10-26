@@ -26,7 +26,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed mb-4">
-              UK-based digital subscription marketplace. Premium software, creative tools, AI platforms and entertainment — all in one place.
+              Explore digital subscriptions across software, creativity, AI, education and entertainment.
             </p>
             <p className="text-slate-500 text-xs italic">
               ⚠️ This site is currently showing demonstration products only. No real purchases can be made at this time.
@@ -95,7 +95,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-slate-400">
               <li className="flex items-start gap-1.5">
                 <Shield className="w-4 h-4 mt-0.5 text-blue-500 shrink-0" aria-hidden="true" />
-                UK-based business
+                Digital Marketplace
               </li>
               <li className="flex items-start gap-1.5">
                 <Mail className="w-4 h-4 mt-0.5 text-blue-500 shrink-0" aria-hidden="true" />
@@ -121,7 +121,7 @@ export default function Footer() {
             <span className="text-slate-400">unlockpremium.shop</span>
           </p>
           <p className="text-slate-600 text-xs">
-            Built in the UK 🇬🇧
+            100% Digital Delivery
           </p>
         </div>
       </div>
