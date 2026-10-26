@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, CheckCircle, Tag, AlertTriangle, ExternalLink } from 'lucide-react';
 import { getAllProducts, getProductBySlug } from '@/app/lib/products';
 import { ROBOTS_CONFIG } from '@/app/lib/seo';
+import ProductImage from '@/app/components/ProductImage';
 
 // Pre-generate pages for all demo products at build time
 export function generateStaticParams() {
@@ -69,25 +70,11 @@ export default async function ProductPage({
 
         {/* ── Left column: Product hero ───────────────────────────────── */}
         <div className="lg:col-span-3">
-          {/* Product visual */}
-          <div
-            className={`relative rounded-3xl overflow-hidden h-64 sm:h-80 bg-gradient-to-br ${product.gradient} flex items-center justify-center mb-8`}
-          >
-            {/* Grid pattern overlay */}
-            <div
-              className="absolute inset-0 opacity-15"
-              style={{
-                backgroundImage:
-                  'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                backgroundSize: '40px 40px',
-              }}
-              aria-hidden="true"
-            />
-            <span className="text-8xl relative z-10" role="img" aria-label={product.name}>
-              {product.icon}
-            </span>
+          {/* Product visual hero */}
+          <div className="relative rounded-3xl overflow-hidden mb-8 border border-slate-700/50 shadow-2xl">
+            <ProductImage product={product} variant="detail" priority />
             {product.badge && (
-              <span className="absolute top-5 right-5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-sm font-semibold border border-white/30">
+              <span className="absolute top-5 right-5 z-20 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-white text-sm font-semibold border border-slate-700/60 shadow-md">
                 {product.badge}
               </span>
             )}
@@ -125,6 +112,13 @@ export default async function ProductPage({
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* Independent retailer trademark notice */}
+          <div className="mt-8 pt-4 border-t border-slate-800/80">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Independent subscription marketplace. All product names, logos, and brands are property of their respective owners. Mention of third-party products is solely for identification and compatibility purposes and does not imply endorsement, affiliation, or sponsorship.
+            </p>
           </div>
         </div>
 

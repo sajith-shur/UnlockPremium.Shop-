@@ -15,10 +15,13 @@ export type Category =
   | 'Music & Entertainment'
   | 'TV & Streaming';
 
+export type LogoUsageStatus = 'none' | 'pending' | 'approved';
+
 export interface Product {
   id: string;
   slug: string;
   name: string;
+  brandName?: string;
   tagline: string;
   description: string;
   category: Category;
@@ -28,6 +31,15 @@ export interface Product {
   features: string[];
   icon: string; // emoji fallback icon
   gradient: string; // Tailwind gradient classes for card accent
+
+  // ── Brand & Image Asset Management (Firestore ready) ──
+  logoUrl?: string; // Official brand logo asset path or URL (displayed ONLY if logoUsageStatus === 'approved')
+  coverImageUrl?: string; // Separate product cover image asset path or URL
+  imageAlt?: string; // Descriptive accessible alt text
+  brandThemeColor?: string; // Brand accent hex for styling typography-based product graphics
+  logoUsageStatus?: LogoUsageStatus; // Permission status: only 'approved' permits rendering third-party logos
+  logoSource?: string; // Source or permission reference tracking
+
   isDemo: true; // always true — forces consumers to acknowledge demo status
 }
 
@@ -76,6 +88,7 @@ export const PRODUCTS: Product[] = [
     id: 'canva-pro-1yr',
     slug: 'canva-pro-annual',
     name: 'Canva Pro — Annual',
+    brandName: 'Canva',
     tagline: 'Professional design for everyone',
     description:
       'Access premium Canva Pro templates, brand kits, background remover and AI design tools. Perfect for marketers, social media managers and small business owners who want polished visuals without design experience.',
@@ -92,12 +105,17 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '🎨',
     gradient: 'from-purple-600 to-pink-500',
+    brandThemeColor: '#00C4CC',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Canva Pro Annual digital subscription card graphic',
     isDemo: true,
   },
   {
     id: 'adobe-cc-1mo',
     slug: 'adobe-creative-cloud-monthly',
     name: 'Adobe Creative Cloud',
+    brandName: 'Adobe',
     tagline: 'The complete creative suite',
     description:
       'Photoshop, Illustrator, Premiere Pro, After Effects and 20+ more applications. The industry-standard toolkit trusted by creative professionals worldwide.',
@@ -114,6 +132,10 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '✏️',
     gradient: 'from-red-600 to-orange-500',
+    brandThemeColor: '#FF0000',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Adobe Creative Cloud digital subscription card graphic',
     isDemo: true,
   },
 
@@ -122,6 +144,7 @@ export const PRODUCTS: Product[] = [
     id: 'microsoft-365-personal',
     slug: 'microsoft-365-personal',
     name: 'Microsoft 365 Personal',
+    brandName: 'Microsoft',
     tagline: 'Word, Excel, PowerPoint & more',
     description:
       'The complete Office suite for one person, including 1 TB OneDrive storage. Get premium versions of Word, Excel, PowerPoint, Outlook and Teams on up to 5 devices.',
@@ -138,12 +161,17 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '💼',
     gradient: 'from-blue-600 to-cyan-500',
+    brandThemeColor: '#0078D4',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Microsoft 365 Personal digital subscription card graphic',
     isDemo: true,
   },
   {
     id: 'microsoft-365-family',
     slug: 'microsoft-365-family',
     name: 'Microsoft 365 Family',
+    brandName: 'Microsoft',
     tagline: 'Share with up to 6 people',
     description:
       'Everything in Personal, shareable with up to 6 household members, each with their own 1 TB OneDrive storage. The most cost-effective way to keep the whole family productive.',
@@ -160,6 +188,10 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '👨‍👩‍👧‍👦',
     gradient: 'from-sky-600 to-blue-500',
+    brandThemeColor: '#0078D4',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Microsoft 365 Family digital subscription card graphic',
     isDemo: true,
   },
 
@@ -168,6 +200,7 @@ export const PRODUCTS: Product[] = [
     id: 'google-one-ai-premium',
     slug: 'google-one-ai-premium',
     name: 'Google One AI Premium',
+    brandName: 'Google',
     tagline: 'Gemini Advanced + 2 TB storage',
     description:
       'Access Google\'s most capable AI model, Gemini Advanced, integrated across Gmail, Docs, Sheets and more. Includes 2 TB of Google One storage shared across Photos, Drive and Gmail.',
@@ -184,12 +217,17 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '🤖',
     gradient: 'from-emerald-600 to-teal-500',
+    brandThemeColor: '#4285F4',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Google One AI Premium digital subscription card graphic',
     isDemo: true,
   },
   {
     id: 'chatgpt-plus',
     slug: 'chatgpt-plus',
     name: 'ChatGPT Plus',
+    brandName: 'OpenAI',
     tagline: 'GPT-4o with priority access',
     description:
       'Priority access to OpenAI\'s most advanced models including GPT-4o, DALL·E image generation, Advanced Data Analysis and browsing. Stay ahead with the latest AI breakthroughs.',
@@ -206,6 +244,10 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '✨',
     gradient: 'from-violet-600 to-indigo-500',
+    brandThemeColor: '#10A37F',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'ChatGPT Plus digital subscription card graphic',
     isDemo: true,
   },
 
@@ -214,6 +256,7 @@ export const PRODUCTS: Product[] = [
     id: 'duolingo-super-annual',
     slug: 'duolingo-super-annual',
     name: 'Duolingo Super — Annual',
+    brandName: 'Duolingo',
     tagline: 'Learn a language, ad-free',
     description:
       'The most effective language learning app, now without ads. Unlimited hearts, personalised practice, offline lessons and progress tracking. Learn Spanish, French, Japanese and 40+ more languages.',
@@ -230,12 +273,17 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '📚',
     gradient: 'from-green-600 to-emerald-500',
+    brandThemeColor: '#58CC02',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Duolingo Super Annual digital subscription card graphic',
     isDemo: true,
   },
   {
     id: 'coursera-plus',
     slug: 'coursera-plus',
     name: 'Coursera Plus',
+    brandName: 'Coursera',
     tagline: '7,000+ courses & certificates',
     description:
       'Unlimited access to over 7,000 courses, Specialisations and Professional Certificates from world-class universities including Google, IBM, Yale and Stanford. Advance your career with recognised credentials.',
@@ -252,6 +300,10 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '🎓',
     gradient: 'from-blue-600 to-indigo-500',
+    brandThemeColor: '#0056D2',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Coursera Plus digital subscription card graphic',
     isDemo: true,
   },
 
@@ -260,6 +312,7 @@ export const PRODUCTS: Product[] = [
     id: 'spotify-premium-individual',
     slug: 'spotify-premium-individual',
     name: 'Spotify Premium',
+    brandName: 'Spotify',
     tagline: 'Music without limits',
     description:
       'Ad-free music streaming with offline playback, highest audio quality and unlimited skips. Access over 100 million tracks and 5 million podcasts. The world\'s most popular music platform.',
@@ -276,12 +329,17 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '🎵',
     gradient: 'from-green-600 to-lime-500',
+    brandThemeColor: '#1DB954',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Spotify Premium digital subscription card graphic',
     isDemo: true,
   },
   {
     id: 'tidal-hifi-plus',
     slug: 'tidal-hifi-plus',
     name: 'Tidal HiFi Plus',
+    brandName: 'Tidal',
     tagline: 'Lossless & spatial audio',
     description:
       'Experience music the way artists intended with lossless FLAC audio, Dolby Atmos and Sony 360 Reality Audio. The audiophile\'s choice for discerning listeners who won\'t compromise on sound quality.',
@@ -298,6 +356,10 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '🎶',
     gradient: 'from-sky-600 to-cyan-500',
+    brandThemeColor: '#00E5FF',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Tidal HiFi Plus digital subscription card graphic',
     isDemo: true,
   },
 
@@ -306,6 +368,7 @@ export const PRODUCTS: Product[] = [
     id: 'iptv-premium-12mo',
     slug: 'licensed-iptv-premium',
     name: 'IPTV Premium — 12 Months',
+    brandName: 'IPTV Premium',
     tagline: 'Licensed streaming for cord-cutters',
     description:
       'A licensed IPTV service providing access to a broad range of live channels, catch-up TV and on-demand content. Compatible with Smart TVs, Android devices, MAG boxes and Firestick.',
@@ -322,12 +385,17 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '📺',
     gradient: 'from-red-600 to-rose-500',
+    brandThemeColor: '#EF4444',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'IPTV Premium 12 Months digital subscription card graphic',
     isDemo: true,
   },
   {
     id: 'disney-plus-standard',
     slug: 'disney-plus-standard',
     name: 'Disney+ Standard',
+    brandName: 'Disney+',
     tagline: 'Disney, Marvel, Star Wars & more',
     description:
       'Stream thousands of films and series from Disney, Pixar, Marvel, Star Wars and National Geographic. Enjoy family favourites alongside the latest blockbuster releases on up to 4 screens.',
@@ -344,6 +412,10 @@ export const PRODUCTS: Product[] = [
     ],
     icon: '🎬',
     gradient: 'from-blue-700 to-indigo-600',
+    brandThemeColor: '#113CCF',
+    logoUsageStatus: 'pending',
+    logoSource: 'Pending merchant brand permission review',
+    imageAlt: 'Disney+ Standard digital subscription card graphic',
     isDemo: true,
   },
 ];

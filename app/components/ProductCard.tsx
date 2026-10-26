@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Tag, ArrowRight } from 'lucide-react';
 import type { Product } from '@/app/lib/products';
+import ProductImage from '@/app/components/ProductImage';
 
 interface ProductCardProps {
   product: Product;
@@ -9,23 +10,14 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
   return (
     <article
-      className="product-card glass-card rounded-2xl overflow-hidden flex flex-col h-full"
+      className="product-card glass-card rounded-2xl overflow-hidden flex flex-col h-full group"
       aria-label={`${product.name} — demonstration product`}
     >
-      {/* Card header with gradient accent */}
-      <div className={`relative h-24 bg-gradient-to-br ${product.gradient} flex items-center justify-center overflow-hidden`}>
-        {/* Background pattern */}
-        <div className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'radial-gradient(circle at 30% 50%, white 1px, transparent 1px), radial-gradient(circle at 70% 50%, white 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-        <span className="text-4xl relative z-10" role="img" aria-label={product.name}>
-          {product.icon}
-        </span>
+      {/* Product Image / Artwork Header (144px / h-36) */}
+      <div className="relative overflow-hidden">
+        <ProductImage product={product} variant="card" />
         {product.badge && (
-          <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-semibold border border-white/30">
+          <span className="absolute top-3 right-3 z-20 px-2 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-md text-white text-xs font-semibold border border-slate-700/60 shadow-sm">
             {product.badge}
           </span>
         )}
