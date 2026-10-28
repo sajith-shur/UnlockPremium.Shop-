@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // Authentication & Authorization Helper Functions
+    // =========================================================================
+
+    // Verify whether the caller holds the verified admin custom claim AND email is verified
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.admin == true
+        && request.auth.token.email_verified == true;
+    }
+
+    // Helper to validate incoming string bounds
+    function isNonEmptyString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // Helper to validate permitted product status
+    function isValidStatus(status) {
+      return status in ['draft', 'published', 'unpublished'];
+    }
+
+    // Helper to validate activation type
+    function isValidActivationType(type) {
+      return type in ['instant_invite', 'credentials', 'license_key', 'redemption_link'];
+    }
+
+    // Helper to validate logo usage status
+    function isValidLogoUsageStatus(status) {
+      return status in ['none', 'pending', 'approved'];
+    }
+
+    // Prevent confidential supplier, cost, margin, and internal review fields
+    // from ever being written to public product documents
+    function hasNoConfidentialFields(data) {
+      return !('costMinor' in data)
+        && !('supplierName' in data)
+        && !('supplierContact' in data)
+        && !('targetMarginPercent' in data)
+        && !('accountManagementNotes' in data)
+        && !('wholesaleCost' in data)
+        && !('supplierId' in data)
+        && !('logoPermissionNotes' in data);
+    }
+
+    // Validate structure of Product documents
+    function isValidProductData(data) {
+      return hasNoConfidentialFields(data)
+        && isNonEmptyString(data.slug, 2, 100)
+        && isNonEmptyString(data.name, 2, 120)
+        && isNonEmptyString(data.brandName, 1, 80)
+        && isNonEmptyString(data.category, 2, 60)
+        && isNonEmptyString(data.tagline, 2, 200)
+        && isNonEmptyString(data.description, 5, 2000)
+        && isValidStatus(data.status)
+        && data.isAvailable is bool
+        && data.demoPriceMinor is int && data.demoPriceMinor >= 0
+        && data.currency is string && data.currency.size() == 3
+        && isValidActivationType(data.activationType)
+        && isValidLogoUsageStatus(data.logoUsageStatus)
+        && data.features is list && data.features.size() <= 20
+        && data.variants is list && data.variants.size() <= 10;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    // ── Public Products Collection ───────────────────────────────────────────
+    match /products/{productId} {
+      // Public visitors can ONLY read published products
+      // Administrators with custom claim can read drafts & published
+      allow get: if (resource.data.status == 'published') || isAdmin();
+      allow list: if (resource.data.status == 'published') || isAdmin();
+
+      // Only administrators can create, update, or delete products
+      allow create: if isAdmin() 
+        && isValidProductData(request.resource.data);
+
+      allow update: if isAdmin() 
+        && isValidProductData(request.resource.data);
+
+      allow delete: if isAdmin();
+    }
+
+    // ── Categories Taxonomy Collection ───────────────────────────────────────
+    match /categories/{categoryId} {
+      // Categories are publicly viewable
+      allow read: if true;
+
+      // Only administrators can modify categories
+      allow create, update: if isAdmin()
+        && isNonEmptyString(request.resource.data.name, 2, 60)
+        && isNonEmptyString(request.resource.data.description, 2, 255)
+        && request.resource.data.displayOrder is int;
+
+      allow delete: if isAdmin();
+    }
+
+    // ── Confidential Supplier & Internal Records ─────────────────────────────
+    // Completely inaccessible to public visitors or non-admin authenticated users.
+    // Contains supplier contacts, wholesale cost minor units, target margins, and
+    // internal logo-permission legal records.
+    match /products_internal/{productId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin()
+        && isNonEmptyString(request.resource.data.productId, 1, 100)
+        && request.resource.data.costMinor is int && request.resource.data.costMinor >= 0
+        && isNonEmptyString(request.resource.data.supplierName, 1, 100);
+    }
+
+    // ── Default Deny ─────────────────────────────────────────────────────────
+    // Deny access to any other document or collection by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
