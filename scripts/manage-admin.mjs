@@ -26,6 +26,9 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'node:fs';
 
+import path from 'node:path';
+import os from 'node:os';
+
 const EXPECTED_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'unlockshop';
 
 function initAdminSdk() {
@@ -33,7 +36,9 @@ function initAdminSdk() {
   if (getApps().length > 0) {
     app = getApps()[0];
   } else {
-    const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const defaultKeyPath = path.join(os.homedir(), '.config/unlockshop-adminsdk-key.json');
+    const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || (fs.existsSync(defaultKeyPath) ? defaultKeyPath : null);
+
     if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
       const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
       app = initializeApp({
