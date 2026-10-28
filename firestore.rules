@@ -6,11 +6,19 @@ service cloud.firestore {
     // Authentication & Authorization Helper Functions
     // =========================================================================
 
-    // Verify whether the caller holds the verified admin custom claim AND email is verified
+    // Check whether the caller has an active admin authorization document in /admin_users/{uid}
+    function hasActiveAdminRecord() {
+      return exists(/databases/$(database)/documents/admin_users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_users/$(request.auth.uid)).data.active == true;
+    }
+
+    // Verify whether the caller holds the verified admin custom claim, verified email,
+    // AND an active authorization record in /admin_users/{uid}
     function isAdmin() {
       return request.auth != null
         && request.auth.token.admin == true
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email_verified == true
+        && hasActiveAdminRecord();
     }
 
     // Helper to validate incoming string bounds
@@ -110,6 +118,14 @@ service cloud.firestore {
         && isNonEmptyString(request.resource.data.productId, 1, 100)
         && request.resource.data.costMinor is int && request.resource.data.costMinor >= 0
         && isNonEmptyString(request.resource.data.supplierName, 1, 100);
+    }
+
+    // ── Administrator Authorisation Records ──────────────────────────────────
+    // Strictly managed server-side via Firebase Admin SDK.
+    // Client-side access (read/write/create/update/delete) is denied to all users,
+    // including authenticated administrators.
+    match /admin_users/{uid} {
+      allow read, write: if false;
     }
 
     // ── Default Deny ─────────────────────────────────────────────────────────

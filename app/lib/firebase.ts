@@ -35,9 +35,16 @@ if (typeof window !== 'undefined') {
     console.warn('Session persistence setup fallback:', err?.message || err);
   });
 
-  // Connect to local emulators ONLY in non-production development on localhost, or when explicitly forced
+  // Connect to local emulators ONLY when:
+  // 1. NODE_ENV is strictly NOT production
+  // 2. Browser hostname is localhost or 127.0.0.1
+  // 3. Emulator mode is explicitly requested via NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true'
+  // The presence of NEXT_PUBLIC_USE_FIREBASE_EMULATOR must never override the production restriction.
+  const isNonProduction = process.env.NODE_ENV !== 'production';
   const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true' || (process.env.NODE_ENV !== 'production' && isLocalHost);
+  const isExplicitlyEnabled = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
+
+  const useEmulator = isNonProduction && isLocalHost && isExplicitlyEnabled;
   const emulatorHost = process.env.NEXT_PUBLIC_EMULATOR_HOST || '127.0.0.1';
 
   // Only connect once if running against local emulators

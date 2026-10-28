@@ -5,14 +5,17 @@
  * Usage:
  *   node scripts/manage-admin.mjs list
  *   node scripts/manage-admin.mjs get <uid-or-email>
- *   node scripts/manage-admin.mjs create <email> <password> [--verify]
+ *   node scripts/manage-admin.mjs create <email> [password] [--verify]
  *   node scripts/manage-admin.mjs verify-email <uid-or-email>
+ *   node scripts/manage-admin.mjs send-verification-link <uid-or-email>
  *   node scripts/manage-admin.mjs grant <uid-or-email> [--confirm]
  *   node scripts/manage-admin.mjs revoke <uid-or-email> [--confirm]
  * 
  * Safety & Security:
  *   - Verifies target Firebase project (defaults to 'unlockshop')
  *   - Verifies email is verified before granting administrative privileges
+ *   - Manages /admin_users/{uid} authorisation record for 0-second instant revocation
+ *   - Deactivates /admin_users/{uid} first during emergency revocation
  *   - Preserves all unrelated custom claims
  *   - Requires explicit operator confirmation (--confirm flag) for privilege changes
  *   - Never prints passwords, tokens, or private credentials
@@ -20,30 +23,35 @@
 
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'node:fs';
 
 const EXPECTED_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'unlockshop';
 
 function initAdminSdk() {
+  let app;
   if (getApps().length > 0) {
-    return getAuth();
-  }
-
-  const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-    initializeApp({
-      credential: cert(serviceAccount),
-      projectId: serviceAccount.project_id || EXPECTED_PROJECT_ID,
-    });
+    app = getApps()[0];
   } else {
-    // When running with FIREBASE_AUTH_EMULATOR_HOST or Application Default Credentials
-    initializeApp({
-      projectId: EXPECTED_PROJECT_ID,
-    });
+    const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
+      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+      app = initializeApp({
+        credential: cert(serviceAccount),
+        projectId: serviceAccount.project_id || EXPECTED_PROJECT_ID,
+      });
+    } else {
+      // When running with FIREBASE_AUTH_EMULATOR_HOST or Application Default Credentials
+      app = initializeApp({
+        projectId: EXPECTED_PROJECT_ID,
+      });
+    }
   }
 
-  return getAuth();
+  return {
+    auth: getAuth(app),
+    db: getFirestore(app),
+  };
 }
 
 async function resolveUser(auth, identifier) {
@@ -59,7 +67,7 @@ async function resolveUser(auth, identifier) {
 }
 
 async function main() {
-  const auth = initAdminSdk();
+  const { auth, db } = initAdminSdk();
   const args = process.argv.slice(2);
   const command = args[0];
 
@@ -79,8 +87,17 @@ async function main() {
       for (const u of listResult.users) {
         const claims = u.customClaims || {};
         const isAdmin = claims.admin === true;
+        let authRecord = 'none';
+        try {
+          const doc = await db.collection('admin_users').doc(u.uid).get();
+          if (doc.exists) {
+            authRecord = doc.data().active ? 'active' : 'inactive';
+          }
+        } catch {
+          authRecord = 'unknown';
+        }
         console.log(
-          `  - UID: ${u.uid} | Email: ${u.email} | Verified: ${u.emailVerified} | Admin: ${isAdmin}`
+          `  - UID: ${u.uid} | Email: ${u.email} | Verified: ${u.emailVerified} | Claim: ${isAdmin} | AuthRecord: ${authRecord}`
         );
       }
       break;
@@ -93,11 +110,18 @@ async function main() {
         process.exit(1);
       }
       const user = await resolveUser(auth, id);
+      const adminDoc = await db.collection('admin_users').doc(user.uid).get();
+      const adminData = adminDoc.exists ? adminDoc.data() : null;
+
       console.log(`User Profile for: ${user.email}`);
-      console.log(`  UID:            ${user.uid}`);
-      console.log(`  Email Verified: ${user.emailVerified}`);
-      console.log(`  Disabled:       ${user.disabled}`);
-      console.log(`  Custom Claims:  ${JSON.stringify(user.customClaims || {}, null, 2)}`);
+      console.log(`  UID:                   ${user.uid}`);
+      console.log(`  Email Verified:        ${user.emailVerified}`);
+      console.log(`  Disabled:              ${user.disabled}`);
+      console.log(`  Custom Claims:         ${JSON.stringify(user.customClaims || {}, null, 2)}`);
+      console.log(`  Authorisation Record:  ${adminDoc.exists ? (adminData.active ? 'ACTIVE (active: true)' : 'INACTIVE (active: false)') : 'NOT FOUND'}`);
+      if (adminData) {
+        console.log(`  Record Details:        ${JSON.stringify(adminData, null, 2)}`);
+      }
       break;
     }
 
@@ -139,7 +163,7 @@ async function main() {
         const setupLink = await auth.generatePasswordResetLink(newUser.email);
         console.log(`\n[Action Required] Secure password setup link generated for ${newUser.email}:`);
         console.log(`  ${setupLink}`);
-        console.log(`\nDeliver this link securely to the administrator so they can set their private password.`);
+        console.log(`\nDeliver this link securely out-of-band to the administrator so they can set their private password.`);
       }
       break;
     }
@@ -175,7 +199,7 @@ async function main() {
       const link = await auth.generateEmailVerificationLink(user.email);
       console.log(`[Success] Secure email-verification link generated for ${user.email}:`);
       console.log(`  ${link}`);
-      console.log(`\nDeliver this link to the administrator's corporate inbox to complete verified onboarding.`);
+      console.log(`\nDeliver this link out-of-band to the administrator's corporate inbox to complete verified onboarding.`);
       break;
     }
 
@@ -209,6 +233,17 @@ async function main() {
         process.exit(0);
       }
 
+      // Step 1: Create active authorisation record in /admin_users/{uid}
+      console.log(`[Step 1/2] Creating active authorisation record in /admin_users/${user.uid}...`);
+      await db.collection('admin_users').doc(user.uid).set({
+        active: true,
+        email: user.email,
+        updatedAt: new Date().toISOString(),
+        grantedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      // Step 2: Assign custom claims in Firebase Auth
+      console.log(`[Step 2/2] Assigning custom claim 'admin: true'...`);
       const existingClaims = user.customClaims || {};
       const newClaims = {
         ...existingClaims,
@@ -216,7 +251,8 @@ async function main() {
       };
 
       await auth.setCustomUserClaims(user.uid, newClaims);
-      console.log(`[Success] Administrative claim (admin: true) granted to ${user.email}.`);
+      console.log(`[Success] Administrative access granted to ${user.email}.`);
+      console.log(`Active authorisation record written to Firestore (/admin_users/${user.uid}).`);
       console.log(`Preserved claims: ${JSON.stringify(newClaims, null, 2)}`);
       break;
     }
@@ -241,19 +277,29 @@ async function main() {
         process.exit(0);
       }
 
+      // Step 1: Deactivate authorisation record in /admin_users/{uid} first (Immediate 0ms cutoff)
+      console.log(`[Step 1/3] Deactivating authorisation record in /admin_users/${user.uid}...`);
+      await db.collection('admin_users').doc(user.uid).set({
+        active: false,
+        revokedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      // Step 2: Update custom claims
+      console.log(`[Step 2/3] Revoking 'admin' custom claim in Firebase Auth...`);
       const existingClaims = user.customClaims || {};
       const newClaims = {
         ...existingClaims,
         admin: false,
       };
-
       await auth.setCustomUserClaims(user.uid, newClaims);
-      // Immediately invalidate all active refresh tokens for urgent revocation
+
+      // Step 3: Revoke all active refresh tokens
+      console.log(`[Step 3/3] Revoking all active refresh tokens for UID ${user.uid}...`);
       await auth.revokeRefreshTokens(user.uid);
 
-      console.log(`[Success] Administrative claim revoked from ${user.email}.`);
+      console.log(`[Success] Administrative privileges successfully revoked from ${user.email}.`);
+      console.log(`Firestore record deactivated (immediate 0-second denial).`);
       console.log(`All refresh tokens revoked for UID ${user.uid}.`);
-      console.log(`Updated claims: ${JSON.stringify(newClaims, null, 2)}`);
       break;
     }
 
@@ -264,8 +310,8 @@ async function main() {
       console.log(`  create <email> [password]                   Provision an admin account`);
       console.log(`  verify-email <uid-or-email>                 Mark email verified (EMULATOR ONLY)`);
       console.log(`  send-verification-link <uid-or-email>       Generate email verification link`);
-      console.log(`  grant <uid-or-email> [--confirm]            Grant admin: true claim`);
-      console.log(`  revoke <uid-or-email> [--confirm]           Revoke admin claim and refresh tokens`);
+      console.log(`  grant <uid-or-email> [--confirm]            Grant admin: true and create active authorisation record`);
+      console.log(`  revoke <uid-or-email> [--confirm]           Deactivate authorisation record, revoke claim, and revoke refresh tokens`);
       break;
   }
 }

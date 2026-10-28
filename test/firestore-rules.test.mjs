@@ -92,6 +92,11 @@ beforeEach(async () => {
         displayOrder: 1,
       });
       await db.collection('products_internal').doc('canva-published').set(validSupplierData);
+      // Pre-populate active admin authorization record for admin_user_456
+      await db.collection('admin_users').doc('admin_user_456').set({
+        active: true,
+        email: 'admin@unlockpremium.shop',
+      });
     });
   }
 });
@@ -392,4 +397,66 @@ test('5. Administrative Claim Type Safety (Strict boolean true Required)', async
     await assertFails(unverifiedAdminDb.collection('products').doc('canva-draft').get());
   });
 });
+
+test('6. Immediate Authorization Revocation via /admin_users/{uid}', async (t) => {
+  const adminDb = testEnv
+    .authenticatedContext('admin_user_456', {
+      email: 'admin@unlockpremium.shop',
+      email_verified: true,
+      admin: true,
+    })
+    .firestore();
+
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+
+  await t.test('Admin with active record CAN access protected internal data', async () => {
+    await assertSucceeds(adminDb.collection('products_internal').doc('canva-published').get());
+    await assertSucceeds(adminDb.collection('products').doc('canva-draft').get());
+  });
+
+  await t.test('Deactivating authorization record (active: false) DENIES access immediately', async () => {
+    // Simulate server-side emergency deactivation
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().collection('admin_users').doc('admin_user_456').update({
+        active: false,
+      });
+    });
+
+    // Request from client with still-valid admin: true token is REJECTED immediately!
+    await assertFails(adminDb.collection('products_internal').doc('canva-published').get());
+    await assertFails(adminDb.collection('products').doc('canva-draft').get());
+    await assertFails(adminDb.collection('products').doc('canva-published').update({ demoPriceMinor: 1234 }));
+  });
+
+  await t.test('Deleting authorization record DENIES access immediately', async () => {
+    // Delete the record completely
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().collection('admin_users').doc('admin_user_456').delete();
+    });
+
+    // Request is REJECTED immediately!
+    await assertFails(adminDb.collection('products_internal').doc('canva-published').get());
+    await assertFails(adminDb.collection('products').doc('canva-draft').get());
+  });
+
+  await t.test('Client CANNOT read /admin_users collection (even with admin claim)', async () => {
+    await assertFails(adminDb.collection('admin_users').doc('admin_user_456').get());
+    await assertFails(unauthDb.collection('admin_users').doc('admin_user_456').get());
+  });
+
+  await t.test('Client CANNOT write or modify /admin_users records (even with admin claim)', async () => {
+    await assertFails(
+      adminDb.collection('admin_users').doc('admin_user_456').set({
+        active: true,
+        hacked: true,
+      })
+    );
+    await assertFails(
+      unauthDb.collection('admin_users').doc('admin_user_456').set({
+        active: true,
+      })
+    );
+  });
+});
+
 
