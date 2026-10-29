@@ -1,17 +1,24 @@
 #!/usr/bin/env node
 /**
  * Administrator Provisioning & Custom Claims Management CLI
- * 
+ *
+ * Authentication: Uses Application Default Credentials (ADC) exclusively.
+ *   No service-account JSON key files are read or required.
+ *   Authenticate once before running: `gcloud auth application-default login`
+ *   or set GOOGLE_APPLICATION_CREDENTIALS to a Workload Identity / short-lived
+ *   token source if running in a CI/CD environment.
+ *
  * Usage:
  *   node scripts/manage-admin.mjs list
  *   node scripts/manage-admin.mjs get <uid-or-email>
- *   node scripts/manage-admin.mjs create <email> [password] [--verify]
- *   node scripts/manage-admin.mjs verify-email <uid-or-email>
+ *   node scripts/manage-admin.mjs create <email> [--verify]
+ *   node scripts/manage-admin.mjs verify-email <uid-or-email>     (EMULATOR ONLY)
  *   node scripts/manage-admin.mjs send-verification-link <uid-or-email>
  *   node scripts/manage-admin.mjs grant <uid-or-email> [--confirm]
  *   node scripts/manage-admin.mjs revoke <uid-or-email> [--confirm]
- * 
+ *
  * Safety & Security:
+ *   - Uses Application Default Credentials (ADC) — no long-lived JSON key on disk
  *   - Verifies target Firebase project (defaults to 'unlockshop')
  *   - Verifies email is verified before granting administrative privileges
  *   - Manages /admin_users/{uid} authorisation record for 0-second instant revocation
@@ -19,38 +26,37 @@
  *   - Preserves all unrelated custom claims
  *   - Requires explicit operator confirmation (--confirm flag) for privilege changes
  *   - Never prints passwords, tokens, or private credentials
+ *   - Password reset / email-verification links printed only to stderr for manual
+ *     out-of-band delivery; redirect stdout if you need a clean log file
  */
 
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import fs from 'node:fs';
-
-import path from 'node:path';
-import os from 'node:os';
 
 const EXPECTED_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'unlockshop';
 
+/**
+ * Initialise Firebase Admin SDK using Application Default Credentials.
+ *
+ * ADC resolution order (google-auth-library):
+ *   1. GOOGLE_APPLICATION_CREDENTIALS env var → any valid credential file
+ *      (prefer Workload Identity / impersonation token source over a key file)
+ *   2. gcloud user credentials  (`gcloud auth application-default login`)
+ *   3. Attached service-account metadata (GCE / Cloud Run / App Engine)
+ *
+ * The old fallback that auto-loaded ~/.config/unlockshop-adminsdk-key.json has
+ * been intentionally removed. No JSON private-key file is opened here.
+ */
 function initAdminSdk() {
   let app;
   if (getApps().length > 0) {
     app = getApps()[0];
   } else {
-    const defaultKeyPath = path.join(os.homedir(), '.config/unlockshop-adminsdk-key.json');
-    const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || (fs.existsSync(defaultKeyPath) ? defaultKeyPath : null);
-
-    if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
-      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-      app = initializeApp({
-        credential: cert(serviceAccount),
-        projectId: serviceAccount.project_id || EXPECTED_PROJECT_ID,
-      });
-    } else {
-      // When running with FIREBASE_AUTH_EMULATOR_HOST or Application Default Credentials
-      app = initializeApp({
-        projectId: EXPECTED_PROJECT_ID,
-      });
-    }
+    // initializeApp() with no credential argument uses ADC automatically.
+    // Works for: emulator (FIREBASE_AUTH_EMULATOR_HOST set), gcloud ADC,
+    // and all GCP-hosted runtimes.
+    app = initializeApp({ projectId: EXPECTED_PROJECT_ID });
   }
 
   return {
@@ -132,43 +138,56 @@ async function main() {
 
     case 'create': {
       const email = args[1];
-      let password = args[2];
       const isEmulator = !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
 
       if (!email) {
-        console.error('Usage: node scripts/manage-admin.mjs create <email> [password] [--verify]');
+        console.error('Usage: node scripts/manage-admin.mjs create <email> [--verify]');
         process.exit(1);
       }
 
-      if (!isEmulator && password) {
-        console.warn(
-          `[Security Warning] Passing plaintext passwords via CLI arguments in production exposes credentials in process tables and shell history.`
+      // In production: never accept a password argument; let Firebase generate a
+      // random credential that the user replaces via the password-reset link below.
+      // In emulator: accept --verify flag only (no plain-text password arg).
+      if (!isEmulator && args[2] && !args[2].startsWith('--')) {
+        console.error(
+          '[Security Error] Passing plaintext passwords via CLI arguments is prohibited. ' +
+          'Omit the password argument; a secure one-time password-reset link will be generated.'
         );
+        process.exit(1);
       }
 
-      if (!password) {
-        // Generate an ephemeral strong temporary key
-        password = 'Temp-' + Math.random().toString(36).slice(2) + Math.random().toString(36).toUpperCase().slice(2) + '!9#';
-      }
+      // Generate an ephemeral cryptographically-random password for account
+      // creation. The user will replace it via the Firebase password-reset link.
+      // This value is never logged or printed.
+      const crypto = await import('node:crypto');
+      const ephemeralPassword = crypto.randomBytes(24).toString('base64url');
 
       const verify = isEmulator && args.includes('--verify');
 
       const newUser = await auth.createUser({
         email: email.trim(),
-        password,
+        password: ephemeralPassword,
         emailVerified: verify,
       });
 
+      // Log UID and email only — ephemeralPassword is intentionally discarded
       console.log(`[Success] User account created:`);
       console.log(`  UID:            ${newUser.uid}`);
       console.log(`  Email:          ${newUser.email}`);
       console.log(`  Email Verified: ${newUser.emailVerified}`);
 
       if (!isEmulator) {
+        // Generate a one-time password-reset link and write it to STDERR only.
+        // STDERR is not captured by stdout redirects or most log collectors, so
+        // the link reaches the operator's terminal without entering stdout logs.
         const setupLink = await auth.generatePasswordResetLink(newUser.email);
-        console.log(`\n[Action Required] Secure password setup link generated for ${newUser.email}:`);
-        console.log(`  ${setupLink}`);
-        console.log(`\nDeliver this link securely out-of-band to the administrator so they can set their private password.`);
+        process.stderr.write(
+          `\n[ACTION REQUIRED — DELIVER OUT-OF-BAND]\n` +
+          `One-time password setup link for ${newUser.email}:\n` +
+          `  ${setupLink}\n\n` +
+          `Copy this link and send it directly to the administrator via a private channel.\n` +
+          `It is printed to STDERR only and must NOT be shared via chat, email, or commit history.\n\n`
+        );
       }
       break;
     }
@@ -202,9 +221,14 @@ async function main() {
       }
       const user = await resolveUser(auth, id);
       const link = await auth.generateEmailVerificationLink(user.email);
-      console.log(`[Success] Secure email-verification link generated for ${user.email}:`);
-      console.log(`  ${link}`);
-      console.log(`\nDeliver this link out-of-band to the administrator's corporate inbox to complete verified onboarding.`);
+      // Write the sensitive link to STDERR only — not captured by stdout log collectors
+      process.stderr.write(
+        `\n[ACTION REQUIRED — DELIVER OUT-OF-BAND]\n` +
+        `Email-verification link for ${user.email}:\n` +
+        `  ${link}\n\n` +
+        `Send this link directly to the administrator's inbox. Do NOT paste into chat or logs.\n\n`
+      );
+      console.log(`[Success] Email-verification link generated for ${user.email} (see STDERR for the link).`);
       break;
     }
 
@@ -312,11 +336,15 @@ async function main() {
       console.log(`Available commands:`);
       console.log(`  list                                        List all registered users`);
       console.log(`  get <uid-or-email>                          Inspect user details and claims`);
-      console.log(`  create <email> [password]                   Provision an admin account`);
+      console.log(`  create <email> [--verify]                   Provision account (password-reset link → STDERR)`);
       console.log(`  verify-email <uid-or-email>                 Mark email verified (EMULATOR ONLY)`);
-      console.log(`  send-verification-link <uid-or-email>       Generate email verification link`);
+      console.log(`  send-verification-link <uid-or-email>       Generate email verification link (→ STDERR)`);
       console.log(`  grant <uid-or-email> [--confirm]            Grant admin: true and create active authorisation record`);
       console.log(`  revoke <uid-or-email> [--confirm]           Deactivate authorisation record, revoke claim, and revoke refresh tokens`);
+      console.log(``);
+      console.log(`Authentication:`);
+      console.log(`  Uses Application Default Credentials (ADC). No JSON key file required.`);
+      console.log(`  Run once: gcloud auth application-default login`);
       break;
   }
 }
