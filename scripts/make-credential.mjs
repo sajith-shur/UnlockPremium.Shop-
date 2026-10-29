@@ -100,3 +100,4 @@ export async function makeCredential() {
   );
   return applicationDefault();
 }
+
