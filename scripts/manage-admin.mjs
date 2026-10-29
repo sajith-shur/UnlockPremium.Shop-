@@ -2,11 +2,15 @@
 /**
  * Administrator Provisioning & Custom Claims Management CLI
  *
- * Authentication: Uses Application Default Credentials (ADC) exclusively.
- *   No service-account JSON key files are read or required.
- *   Authenticate once before running: `gcloud auth application-default login`
- *   or set GOOGLE_APPLICATION_CREDENTIALS to a Workload Identity / short-lived
- *   token source if running in a CI/CD environment.
+ * Authentication — keyless, in priority order:
+ *   1. FIREBASE_AUTH_EMULATOR_HOST set → no credential (emulator, no network needed)
+ *   2. IMPERSONATE_SERVICE_ACCOUNT=<sa-email> set → short-lived impersonation token
+ *      (your ADC identity must have roles/iam.serviceAccountTokenCreator on the SA)
+ *   3. applicationDefault() → GCE / Cloud Run / App Engine attached metadata
+ *
+ * ⚠  Plain `gcloud auth application-default login` user ADC does NOT work with
+ *    the Firebase Authentication API (identitytoolkit.googleapis.com).
+ *    Use option 2 (impersonation) from a developer workstation.
  *
  * Usage:
  *   node scripts/manage-admin.mjs list
@@ -18,51 +22,83 @@
  *   node scripts/manage-admin.mjs revoke <uid-or-email> [--confirm]
  *
  * Safety & Security:
- *   - Uses Application Default Credentials (ADC) — no long-lived JSON key on disk
- *   - Verifies target Firebase project (defaults to 'unlockshop')
- *   - Verifies email is verified before granting administrative privileges
+ *   - No JSON private-key file is opened by this script
+ *   - Verifies email before granting administrative privileges
  *   - Manages /admin_users/{uid} authorisation record for 0-second instant revocation
  *   - Deactivates /admin_users/{uid} first during emergency revocation
  *   - Preserves all unrelated custom claims
- *   - Requires explicit operator confirmation (--confirm flag) for privilege changes
- *   - Never prints passwords, tokens, or private credentials
- *   - Password reset / email-verification links printed only to stderr for manual
- *     out-of-band delivery; redirect stdout if you need a clean log file
+ *   - Requires --confirm flag for privilege changes
+ *   - Never prints passwords or tokens
+ *   - Sensitive setup/verification links written to a mode-600 temp file,
+ *     never to stdout, stderr, or any shared terminal/transcript
  */
 
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { makeCredential } from './make-credential.mjs';
+import { writeFileSync, chmodSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const EXPECTED_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'unlockshop';
 
 /**
- * Initialise Firebase Admin SDK using Application Default Credentials.
- *
- * ADC resolution order (google-auth-library):
- *   1. GOOGLE_APPLICATION_CREDENTIALS env var → any valid credential file
- *      (prefer Workload Identity / impersonation token source over a key file)
- *   2. gcloud user credentials  (`gcloud auth application-default login`)
- *   3. Attached service-account metadata (GCE / Cloud Run / App Engine)
- *
- * The old fallback that auto-loaded ~/.config/unlockshop-adminsdk-key.json has
- * been intentionally removed. No JSON private-key file is opened here.
+ * Initialise Firebase Admin SDK with the best available keyless credential.
+ * Fails fast with a clear error if no usable credential can be obtained.
+ * Never falls back silently to a JSON key file.
  */
-function initAdminSdk() {
-  let app;
+async function initAdminSdk() {
   if (getApps().length > 0) {
-    app = getApps()[0];
-  } else {
-    // initializeApp() with no credential argument uses ADC automatically.
-    // Works for: emulator (FIREBASE_AUTH_EMULATOR_HOST set), gcloud ADC,
-    // and all GCP-hosted runtimes.
-    app = initializeApp({ projectId: EXPECTED_PROJECT_ID });
+    const app = getApps()[0];
+    return { auth: getAuth(app), db: getFirestore(app) };
   }
 
-  return {
-    auth: getAuth(app),
-    db: getFirestore(app),
-  };
+  const credential = await makeCredential();
+  const config = { projectId: EXPECTED_PROJECT_ID };
+  if (credential) config.credential = credential;
+
+  const app = initializeApp(config);
+  return { auth: getAuth(app), db: getFirestore(app) };
+}
+
+/**
+ * Write a sensitive action link (password-reset or email-verification) to a
+ * mode-600 file in a private temp directory, never to stdout, stderr, or any
+ * terminal that could be captured by an agent transcript or log collector.
+ *
+ * The file path is printed to stdout so the operator can open it manually.
+ */
+async function writeSecureLink({ kind, email, uid, link }) {
+  const dir = join(tmpdir(), 'unlockshop-admin-links');
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `${kind.toLowerCase()}-${uid}-${ts}.txt`;
+  const filepath = join(dir, filename);
+
+  const content = [
+    `KIND:    ${kind}`,
+    `EMAIL:   ${email}`,
+    `UID:     ${uid}`,
+    `CREATED: ${new Date().toISOString()}`,
+    ``,
+    `ACTION REQUIRED — DELIVER OUT-OF-BAND`,
+    `Copy the URL below and send it to the administrator via a secure private channel.`,
+    `Do NOT paste it into chat, email, a commit, or any shared terminal session.`,
+    `This file should be read once and then deleted.`,
+    ``,
+    `URL: ${link}`,
+    ``,
+    `--- delete this file after use ---`,
+  ].join('\n');
+
+  writeFileSync(filepath, content, { mode: 0o600 });
+  chmodSync(filepath, 0o600); // enforce even if umask overrides
+
+  console.log(`[Secure Link] Written to: ${filepath}`);
+  console.log(`  Open this file privately, copy the URL, then delete the file.`);
+  console.log(`  The URL is NOT displayed here to prevent transcript or log capture.`);
 }
 
 async function resolveUser(auth, identifier) {
@@ -78,7 +114,7 @@ async function resolveUser(auth, identifier) {
 }
 
 async function main() {
-  const { auth, db } = initAdminSdk();
+  const { auth, db } = await initAdminSdk();
   const args = process.argv.slice(2);
   const command = args[0];
 
@@ -145,22 +181,21 @@ async function main() {
         process.exit(1);
       }
 
-      // In production: never accept a password argument; let Firebase generate a
-      // random credential that the user replaces via the password-reset link below.
-      // In emulator: accept --verify flag only (no plain-text password arg).
+      // In production: no password argument accepted.
+      // Account password is set by the user via the secure one-time reset link.
       if (!isEmulator && args[2] && !args[2].startsWith('--')) {
         console.error(
           '[Security Error] Passing plaintext passwords via CLI arguments is prohibited. ' +
-          'Omit the password argument; a secure one-time password-reset link will be generated.'
+          'Omit the password argument; a secure one-time password-reset link will be written to a private file.'
         );
         process.exit(1);
       }
 
       // Generate an ephemeral cryptographically-random password for account
-      // creation. The user will replace it via the Firebase password-reset link.
-      // This value is never logged or printed.
-      const crypto = await import('node:crypto');
-      const ephemeralPassword = crypto.randomBytes(24).toString('base64url');
+      // creation only. It is never logged or printed; the user replaces it via
+      // the password-reset link.
+      const { randomBytes } = await import('node:crypto');
+      const ephemeralPassword = randomBytes(24).toString('base64url');
 
       const verify = isEmulator && args.includes('--verify');
 
@@ -177,17 +212,12 @@ async function main() {
       console.log(`  Email Verified: ${newUser.emailVerified}`);
 
       if (!isEmulator) {
-        // Generate a one-time password-reset link and write it to STDERR only.
-        // STDERR is not captured by stdout redirects or most log collectors, so
-        // the link reaches the operator's terminal without entering stdout logs.
-        const setupLink = await auth.generatePasswordResetLink(newUser.email);
-        process.stderr.write(
-          `\n[ACTION REQUIRED — DELIVER OUT-OF-BAND]\n` +
-          `One-time password setup link for ${newUser.email}:\n` +
-          `  ${setupLink}\n\n` +
-          `Copy this link and send it directly to the administrator via a private channel.\n` +
-          `It is printed to STDERR only and must NOT be shared via chat, email, or commit history.\n\n`
-        );
+        await writeSecureLink({
+          kind: 'PASSWORD_RESET',
+          email: newUser.email,
+          uid: newUser.uid,
+          link: await auth.generatePasswordResetLink(newUser.email),
+        });
       }
       break;
     }
@@ -220,15 +250,12 @@ async function main() {
         process.exit(1);
       }
       const user = await resolveUser(auth, id);
-      const link = await auth.generateEmailVerificationLink(user.email);
-      // Write the sensitive link to STDERR only — not captured by stdout log collectors
-      process.stderr.write(
-        `\n[ACTION REQUIRED — DELIVER OUT-OF-BAND]\n` +
-        `Email-verification link for ${user.email}:\n` +
-        `  ${link}\n\n` +
-        `Send this link directly to the administrator's inbox. Do NOT paste into chat or logs.\n\n`
-      );
-      console.log(`[Success] Email-verification link generated for ${user.email} (see STDERR for the link).`);
+      await writeSecureLink({
+        kind: 'EMAIL_VERIFICATION',
+        email: user.email,
+        uid: user.uid,
+        link: await auth.generateEmailVerificationLink(user.email),
+      });
       break;
     }
 
@@ -306,7 +333,7 @@ async function main() {
         process.exit(0);
       }
 
-      // Step 1: Deactivate authorisation record in /admin_users/{uid} first (Immediate 0ms cutoff)
+      // Step 1: Deactivate authorisation record first (immediate 0ms cutoff)
       console.log(`[Step 1/3] Deactivating authorisation record in /admin_users/${user.uid}...`);
       await db.collection('admin_users').doc(user.uid).set({
         active: false,
@@ -336,15 +363,17 @@ async function main() {
       console.log(`Available commands:`);
       console.log(`  list                                        List all registered users`);
       console.log(`  get <uid-or-email>                          Inspect user details and claims`);
-      console.log(`  create <email> [--verify]                   Provision account (password-reset link → STDERR)`);
+      console.log(`  create <email> [--verify]                   Provision account (link → private temp file)`);
       console.log(`  verify-email <uid-or-email>                 Mark email verified (EMULATOR ONLY)`);
-      console.log(`  send-verification-link <uid-or-email>       Generate email verification link (→ STDERR)`);
+      console.log(`  send-verification-link <uid-or-email>       Generate verification link (→ private temp file)`);
       console.log(`  grant <uid-or-email> [--confirm]            Grant admin: true and create active authorisation record`);
       console.log(`  revoke <uid-or-email> [--confirm]           Deactivate authorisation record, revoke claim, and revoke refresh tokens`);
       console.log(``);
-      console.log(`Authentication:`);
-      console.log(`  Uses Application Default Credentials (ADC). No JSON key file required.`);
-      console.log(`  Run once: gcloud auth application-default login`);
+      console.log(`Authentication (no JSON key file required):`);
+      console.log(`  Emulator:      set FIREBASE_AUTH_EMULATOR_HOST`);
+      console.log(`  Workstation:   gcloud auth application-default login (ADC user creds)`);
+      console.log(`                 then IMPERSONATE_SERVICE_ACCOUNT=firebase-adminsdk-fbsvc@unlockshop.iam.gserviceaccount.com`);
+      console.log(`  GCP-hosted:    attached service-account metadata (automatic)`);
       break;
   }
 }
